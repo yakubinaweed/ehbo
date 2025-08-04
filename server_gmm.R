@@ -188,7 +188,7 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
   # Observer for GMM analysis button
   # This is the core logic for the GMM tab, running the analysis with progress updates
   observeEvent(input$run_gmm_analysis_btn, {
-    req(gmm_uploaded_data_rv(), input$gmm_hgb_col, input$gmm_age_col, input$gmm_gender_col)
+    req(gmm_uploaded_data_rv(), input$gmm_hgb_col, input$gmm_age_col, input$gmm_gender_col, input$gmm_gender_choice)
 
     if (analysis_running_rv()) {
       message_rv(list(text = "An analysis is already running. Please wait.", type = "warning"))
@@ -205,6 +205,7 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
       hgb_col <- input$gmm_hgb_col
       age_col <- input$gmm_age_col
       gender_col <- input$gmm_gender_col
+      gender_choice <- input$gmm_gender_choice
 
       if (!all(c(hgb_col, age_col, gender_col) %in% names(data))) {
         message_rv(list(text = "Selected columns not found in data. Please check selections.", type = "error"))
@@ -228,59 +229,64 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
 
       gmm_data <- gmm_data %>%
         mutate(Gender = case_when(
-          grepl("male|m", Gender_orig, ignore.case = TRUE) ~ "Male",
-          grepl("female|f", Gender_orig, ignore.case = TRUE) ~ "Female",
+          grepl("male|m|man|jongen(s)?|heren|mannelijk(e)?", Gender_orig, ignore.case = TRUE) ~ "Male",
+          grepl("female|f|vrouw(en)?|v|meisje(s)?|dame|mevr|vrouwelijke", Gender_orig, ignore.case = TRUE) ~ "Female",
           TRUE ~ "Other"
         )) %>%
         filter(Gender %in% c("Male", "Female"))
-
-      male_data <- gmm_data %>% filter(Gender == "Male")
-      female_data <- gmm_data %>% filter(Gender == "Female")
 
       combined_clustered_data <- tibble()
       male_hgb_transformed_flag <- FALSE
       female_hgb_transformed_flag <- FALSE
       male_gmm_model_bic <- NULL
       female_gmm_model_bic <- NULL
-      
-      if (nrow(male_data) > 0) {
-        yj_result_male <- apply_conditional_yeo_johnson(male_data$HGB)
-        male_data$HGB_transformed <- yj_result_male$transformed_data
-        male_hgb_transformed_flag <- yj_result_male$transformation_applied
-        male_data$HGB_z <- z_transform(male_data$HGB_transformed)
-        male_data$Age_z <- z_transform(male_data$Age)
-        
-        incProgress(0.2, detail = "Running GMM for Male data (BIC)...")
-        tryCatch({
-          male_gmm_model_bic <- run_gmm_with_criterion(male_data %>% dplyr::select(HGB = HGB_z, Age = Age_z), criterion = "BIC")
-          if (!is.null(male_gmm_model_bic)) {
-            male_data_bic <- assign_clusters(male_data, male_gmm_model_bic)
-            male_data_bic$cluster <- as.factor(male_data_bic$cluster)
-            combined_clustered_data <- bind_rows(combined_clustered_data, male_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
-          }
-        }, error = function(e) {
-          message_rv(list(text = paste("Error running BIC GMM for male data:", e$message), type = "error"))
-        })
+
+      # Process Male data if selected
+      if (gender_choice %in% c("Both", "Male")) {
+        male_data <- gmm_data %>% filter(Gender == "Male")
+        if (nrow(male_data) > 0) {
+          yj_result_male <- apply_conditional_yeo_johnson(male_data$HGB)
+          male_data$HGB_transformed <- yj_result_male$transformed_data
+          male_hgb_transformed_flag <- yj_result_male$transformation_applied
+          male_data$HGB_z <- z_transform(male_data$HGB_transformed)
+          male_data$Age_z <- z_transform(male_data$Age)
+          
+          incProgress(0.2, detail = "Running GMM for Male data (BIC)...")
+          tryCatch({
+            male_gmm_model_bic <- run_gmm_with_criterion(male_data %>% dplyr::select(HGB = HGB_z, Age = Age_z), criterion = "BIC")
+            if (!is.null(male_gmm_model_bic)) {
+              male_data_bic <- assign_clusters(male_data, male_gmm_model_bic)
+              male_data_bic$cluster <- as.factor(male_data_bic$cluster)
+              combined_clustered_data <- bind_rows(combined_clustered_data, male_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
+            }
+          }, error = function(e) {
+            message_rv(list(text = paste("Error running BIC GMM for male data:", e$message), type = "error"))
+          })
+        }
       }
 
-      if (nrow(female_data) > 0) {
-        yj_result_female <- apply_conditional_yeo_johnson(female_data$HGB)
-        female_data$HGB_transformed <- yj_result_female$transformed_data
-        female_hgb_transformed_flag <- yj_result_female$transformation_applied
-        female_data$HGB_z <- z_transform(female_data$HGB_transformed)
-        female_data$Age_z <- z_transform(female_data$Age)
-        
-        incProgress(0.2, detail = "Running GMM for Female data (BIC)...")
-        tryCatch({
-          female_gmm_model_bic <- run_gmm_with_criterion(female_data %>% dplyr::select(HGB = HGB_z, Age = Age_z), criterion = "BIC")
-          if (!is.null(female_gmm_model_bic)) {
-            female_data_bic <- assign_clusters(female_data, female_gmm_model_bic)
-            female_data_bic$cluster <- as.factor(female_data_bic$cluster)
-            combined_clustered_data <- bind_rows(combined_clustered_data, female_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
-          }
-        }, error = function(e) {
-          message_rv(list(text = paste("Error running BIC GMM for female data:", e$message), type = "error"))
-        })
+      # Process Female data if selected
+      if (gender_choice %in% c("Both", "Female")) {
+        female_data <- gmm_data %>% filter(Gender == "Female")
+        if (nrow(female_data) > 0) {
+          yj_result_female <- apply_conditional_yeo_johnson(female_data$HGB)
+          female_data$HGB_transformed <- yj_result_female$transformed_data
+          female_hgb_transformed_flag <- yj_result_female$transformation_applied
+          female_data$HGB_z <- z_transform(female_data$HGB_transformed)
+          female_data$Age_z <- z_transform(female_data$Age)
+          
+          incProgress(0.2, detail = "Running GMM for Female data (BIC)...")
+          tryCatch({
+            female_gmm_model_bic <- run_gmm_with_criterion(female_data %>% dplyr::select(HGB = HGB_z, Age = Age_z), criterion = "BIC")
+            if (!is.null(female_gmm_model_bic)) {
+              female_data_bic <- assign_clusters(female_data, female_gmm_model_bic)
+              female_data_bic$cluster <- as.factor(female_data_bic$cluster)
+              combined_clustered_data <- bind_rows(combined_clustered_data, female_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
+            }
+          }, error = function(e) {
+            message_rv(list(text = paste("Error running BIC GMM for female data:", e$message), type = "error"))
+          })
+        }
       }
       
       gmm_models_bic_rv(list(male = male_gmm_model_bic, female = female_gmm_model_bic))
@@ -339,15 +345,21 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
       return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No GMM models available for plotting.", size = 6, color = "grey50"))
     }
     
-    if (!is.null(models$male) && !is.null(models$female)) {
+    # Check if there are models to plot before attempting to set up a two-panel plot
+    has_male_model <- !is.null(models$male)
+    has_female_model <- !is.null(models$female)
+
+    if (has_male_model && has_female_model) {
       par(mfrow = c(1, 2))
       plot(models$male, what = "BIC", main = "Male - BIC Plot")
       plot(models$female, what = "BIC", main = "Female - BIC Plot")
       par(mfrow = c(1, 1))
-    } else if (!is.null(models$male)) {
+    } else if (has_male_model) {
       plot(models$male, what = "BIC", main = "Male - BIC Plot")
-    } else if (!is.null(models$female)) {
+    } else if (has_female_model) {
       plot(models$female, what = "BIC", main = "Female - BIC Plot")
+    } else {
+       return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No GMM models available for plotting.", size = 6, color = "grey50"))
     }
   })
 

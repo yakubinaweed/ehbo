@@ -86,6 +86,8 @@ ui <- navbarPage(
       sidebarPanel(
         fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         hr(),
+        # New radio buttons for gender selection
+        radioButtons(inputId = "gmm_gender_choice", label = "Select Gender:", choices = c("Male" = "Male", "Female" = "Female", "Both" = "Both"), selected = "Both", inline = TRUE),
         # Dynamic inputs for selecting HGB, Age, and Gender columns for GMM
         selectInput(inputId = "gmm_hgb_col", label = "Select HGB Column:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "gmm_age_col", label = "Select Age Column:", choices = c("None" = ""), selected = ""),
