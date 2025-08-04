@@ -89,11 +89,11 @@ Before running the GMM, the data is preprocessed: the selected value's column is
         # Dynamic inputs for selecting HGB, Age, and Gender columns for GMM
         selectInput(inputId = "gmm_hgb_col", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "gmm_age_col", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
-        selectInput(inputId = "gmm_gender_col", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
+        # Removed "None" option from the initial choices list to make it a blank space
+        selectInput(inputId = "gmm_gender_col", label = "Select Column for Gender:", choices = c("", ""), selected = ""),
         hr(),
-        # Action buttons for the GMM analysis
-        # New radio buttons for gender selection
-        radioButtons(inputId = "gmm_gender_choice", label = "Select Gender Analysis:", choices = c("Male" = "Male", "Female" = "Female", "Both" = "Both"), selected = "Both", inline = TRUE),
+        # New UI output for dynamic radio buttons
+        uiOutput("gmm_gender_choice_ui"),
         actionButton("run_gmm_analysis_btn", "Analyze", class = "btn-primary"),
         actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary")
       ),
