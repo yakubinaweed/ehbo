@@ -81,7 +81,7 @@ ui <- navbarPage(
     title = "Subpopulation Detection (GMM)",
     useShinyjs(),
     h4("Detect Subpopulations using HGB and Age"),
-    p("Gaussian Mixture Models aim to detect hidden subpopulations within your data based on HGB and Age. The system will automatically select the best model and number of components based on your chosen criterion (BIC or ICL). ICL is often better for identifying well-separated clusters, as it penalizes models with significant cluster overlap. For each detected subpopulation, estimated age ranges will be provided directly from the model's characteristics, avoiding predefined bins. While increasing the number of components can improve model fit, it also increases the risk of overfitting, where the model learns noise rather than true underlying patterns."),
+    p("Gaussian Mixture Models aim to detect hidden subpopulations within your data based on HGB and Age. The system will automatically select the best model and number of components based on the BIC criterion. For each detected subpopulation, estimated age ranges will be provided directly from the model's characteristics, avoiding predefined bins. While increasing the number of components can improve model fit, it also increases the risk of overfitting, where the model learns noise rather than true underlying patterns."),
     sidebarLayout(
       sidebarPanel(
         fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
@@ -91,12 +91,9 @@ ui <- navbarPage(
         selectInput(inputId = "gmm_age_col", label = "Select Age Column:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "gmm_gender_col", label = "Select Gender Column:", choices = c("None" = ""), selected = ""),
         hr(),
-        radioButtons(inputId = "gmm_model_criterion", label = "Select Model Selection Criterion:", choices = c("BIC", "ICL"), selected = "BIC", inline = TRUE),
-        hr(),
         # Action buttons for the GMM analysis
         actionButton("run_gmm_analysis_btn", "Run Subpopulation Detection", class = "btn-primary"),
-        actionButton("reset_gmm_analysis_btn", "Reset GMM Data", class = "btn-secondary"),
-        uiOutput("app_message")
+        actionButton("reset_gmm_analysis_btn", "Reset GMM Data", class = "btn-secondary")
       ),
       mainPanel(
         # Renders the UI for GMM results dynamically

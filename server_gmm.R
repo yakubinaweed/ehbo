@@ -149,9 +149,8 @@ plot_age_hgb <- function(df, male_hgb_transformed, female_hgb_transformed) {
 
 gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processed_data_rv, gmm_transformation_details_rv, gmm_models_rv, message_rv, analysis_running_rv) {
 
-  # Reactive values to hold models for each criterion
+  # Reactive value to hold models for BIC criterion
   gmm_models_bic_rv <- reactiveVal(list(male = NULL, female = NULL))
-  gmm_models_icl_rv <- reactiveVal(list(male = NULL, female = NULL))
 
   # Helper function to guess column names (could be moved to a shared utils file)
   guess_column <- function(cols_available, common_names) {
@@ -238,14 +237,11 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
       male_data <- gmm_data %>% filter(Gender == "Male")
       female_data <- gmm_data %>% filter(Gender == "Female")
 
-      combined_clustered_data_bic <- tibble()
-      combined_clustered_data_icl <- tibble()
+      combined_clustered_data <- tibble()
       male_hgb_transformed_flag <- FALSE
       female_hgb_transformed_flag <- FALSE
       male_gmm_model_bic <- NULL
       female_gmm_model_bic <- NULL
-      male_gmm_model_icl <- NULL
-      female_gmm_model_icl <- NULL
       
       if (nrow(male_data) > 0) {
         yj_result_male <- apply_conditional_yeo_johnson(male_data$HGB)
@@ -260,22 +256,10 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
           if (!is.null(male_gmm_model_bic)) {
             male_data_bic <- assign_clusters(male_data, male_gmm_model_bic)
             male_data_bic$cluster <- as.factor(male_data_bic$cluster)
-            combined_clustered_data_bic <- bind_rows(combined_clustered_data_bic, male_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
+            combined_clustered_data <- bind_rows(combined_clustered_data, male_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
           }
         }, error = function(e) {
           message_rv(list(text = paste("Error running BIC GMM for male data:", e$message), type = "error"))
-        })
-
-        incProgress(0.2, detail = "Running GMM for Male data (ICL)...")
-        tryCatch({
-          male_gmm_model_icl <- run_gmm_with_criterion(male_data %>% dplyr::select(HGB = HGB_z, Age = Age_z), criterion = "ICL")
-          if (!is.null(male_gmm_model_icl)) {
-            male_data_icl <- assign_clusters(male_data, male_gmm_model_icl)
-            male_data_icl$cluster <- as.factor(male_data_icl$cluster)
-            combined_clustered_data_icl <- bind_rows(combined_clustered_data_icl, male_data_icl %>% dplyr::select(HGB, Age, Gender, cluster))
-          }
-        }, error = function(e) {
-          message_rv(list(text = paste("Error running ICL GMM for male data:", e$message), type = "error"))
         })
       }
 
@@ -292,32 +276,18 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
           if (!is.null(female_gmm_model_bic)) {
             female_data_bic <- assign_clusters(female_data, female_gmm_model_bic)
             female_data_bic$cluster <- as.factor(female_data_bic$cluster)
-            combined_clustered_data_bic <- bind_rows(combined_clustered_data_bic, female_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
+            combined_clustered_data <- bind_rows(combined_clustered_data, female_data_bic %>% dplyr::select(HGB, Age, Gender, cluster))
           }
         }, error = function(e) {
           message_rv(list(text = paste("Error running BIC GMM for female data:", e$message), type = "error"))
         })
-
-        incProgress(0.2, detail = "Running GMM for Female data (ICL)...")
-        tryCatch({
-          female_gmm_model_icl <- run_gmm_with_criterion(female_data %>% dplyr::select(HGB = HGB_z, Age = Age_z), criterion = "ICL")
-          if (!is.null(female_gmm_model_icl)) {
-            female_data_icl <- assign_clusters(female_data, female_gmm_model_icl)
-            female_data_icl$cluster <- as.factor(female_data_icl$cluster)
-            combined_clustered_data_icl <- bind_rows(combined_clustered_data_icl, female_data_icl %>% dplyr::select(HGB, Age, Gender, cluster))
-          }
-        }, error = function(e) {
-          message_rv(list(text = paste("Error running ICL GMM for female data:", e$message), type = "error"))
-        })
       }
       
       gmm_models_bic_rv(list(male = male_gmm_model_bic, female = female_gmm_model_bic))
-      gmm_models_icl_rv(list(male = male_gmm_model_icl, female = female_gmm_model_icl))
-
       gmm_transformation_details_rv(list(male_hgb_transformed = male_hgb_transformed_flag, female_hgb_transformed = female_hgb_transformed_flag))
 
-      if (nrow(combined_clustered_data_bic) > 0 || nrow(combined_clustered_data_icl) > 0) {
-        gmm_processed_data_rv(list(bic = combined_clustered_data_bic, icl = combined_clustered_data_icl))
+      if (nrow(combined_clustered_data) > 0) {
+        gmm_processed_data_rv(list(bic = combined_clustered_data))
         message_rv(list(text = "GMM analysis complete!", type = "success"))
       } else {
         message_rv(list(text = "No data available after GMM processing for plotting/summary.", type = "error"))
@@ -337,7 +307,6 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
     gmm_processed_data_rv(NULL)
     gmm_transformation_details_rv(list(male_hgb_transformed = FALSE, female_hgb_transformed = FALSE))
     gmm_models_bic_rv(list(male = NULL, female = NULL))
-    gmm_models_icl_rv(list(male = NULL, female = NULL))
     shinyjs::reset("gmm_file_upload")
     output$gmm_results_ui <- renderUI(NULL)
     message_rv(list(text = "GMM data and results reset.", type = "info"))
@@ -349,32 +318,17 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
 
   output$gmm_results_ui <- renderUI({
     plot_data_bic <- gmm_processed_data_rv()$bic
-    plot_data_icl <- gmm_processed_data_rv()$icl
 
-    if (is.null(plot_data_bic) && is.null(plot_data_icl)) {
+    if (is.null(plot_data_bic)) {
       return(NULL)
     }
 
     tagList(
-      fluidRow(
-        column(6,
-          div(class = "output-box",
-              h4("BIC Criterion Results"),
-              plotOutput("gmm_model_selection_plot_bic", height = "400px"),
-              plotOutput("plot_output_gmm_bic", height = "600px"),
-              verbatimTextOutput("gmm_summary_output_bic"),
-              tableOutput("gmm_age_group_summary_output_bic")
-          )
-        ),
-        column(6,
-          div(class = "output-box",
-              h4("ICL Criterion Results"),
-              plotOutput("gmm_model_selection_plot_icl", height = "400px"),
-              plotOutput("plot_output_gmm_icl", height = "600px"),
-              verbatimTextOutput("gmm_summary_output_icl"),
-              tableOutput("gmm_age_group_summary_output_icl")
-          )
-        )
+      div(class = "output-box",
+          h4("BIC Criterion Results"),
+          plotOutput("gmm_model_selection_plot_bic", height = "400px"),
+          plotOutput("plot_output_gmm_bic", height = "600px"),
+          verbatimTextOutput("gmm_summary_output_bic")
       )
     )
   })
@@ -397,24 +351,6 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
     }
   })
 
-  output$gmm_model_selection_plot_icl <- renderPlot({
-    models <- gmm_models_icl_rv()
-    if (is.null(models$male) && is.null(models$female)) {
-      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No GMM models available for plotting.", size = 6, color = "grey50"))
-    }
-    
-    if (!is.null(models$male) && !is.null(models$female)) {
-      par(mfrow = c(1, 2))
-      plot(mclustICL(models$male), main = "Male - ICL Plot")
-      plot(mclustICL(models$female), main = "Female - ICL Plot")
-      par(mfrow = c(1, 1))
-    } else if (!is.null(models$male)) {
-      plot(mclustICL(models$male), main = "Male - ICL Plot")
-    } else if (!is.null(models$female)) {
-      plot(mclustICL(models$female), main = "Female - ICL Plot")
-    }
-  })
-
   output$plot_output_gmm_bic <- renderPlot({
     plot_data <- gmm_processed_data_rv()$bic
     if (is.null(plot_data) || nrow(plot_data) == 0) {
@@ -425,17 +361,6 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
                  female_hgb_transformed = gmm_transformation_details_rv()$female_hgb_transformed)
   })
 
-  output$plot_output_gmm_icl <- renderPlot({
-    plot_data <- gmm_processed_data_rv()$icl
-    if (is.null(plot_data) || nrow(plot_data) == 0) {
-      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No GMM data available for plotting.", size = 6, color = "grey50"))
-    }
-    plot_age_hgb(plot_data,
-                 male_hgb_transformed = gmm_transformation_details_rv()$male_hgb_transformed,
-                 female_hgb_transformed = gmm_transformation_details_rv()$female_hgb_transformed)
-  })
-
-
   output$gmm_summary_output_bic <- renderPrint({
     plot_data <- gmm_processed_data_rv()$bic
     models <- gmm_models_bic_rv()
@@ -445,89 +370,6 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
     }
 
     cat("--- GMM Analysis Summary (BIC Criterion) ---\n")
-    
-    if (!is.null(models$male) && !inherits(models$male, "try-error")) {
-        cat("\n--- Male Subpopulations ---\n")
-        
-        print(summary(models$male))
-
-        num_clusters <- models$male$G
-        for (i in 1:num_clusters) {
-            cat(paste0("Cluster ", i, ":\n"))
-            cat(paste0("  Proportion: ", round(models$male$parameters$pro[i], 3), "\n"))
-            
-            male_cluster_data <- plot_data %>% filter(Gender == "Male", cluster == i)
-            mean_hgb <- mean(male_cluster_data$HGB, na.rm = TRUE)
-            mean_age <- mean(male_cluster_data$Age, na.rm = TRUE)
-            sd_hgb <- sd(male_cluster_data$HGB, na.rm = TRUE)
-            sd_age <- sd(male_cluster_data$Age, na.rm = TRUE)
-            
-            cat(paste0("  Mean HGB: ", round(mean_hgb, 3), "\n"))
-            cat(paste0("  Mean Age: ", round(mean_age, 3), "\n"))
-            cat(paste0("  Std Dev HGB: ", round(sd_hgb, 3), "\n"))
-            cat(paste0("  Std Dev Age: ", round(sd_age, 3), "\n"))
-            
-            if (!is.na(sd_age)) {
-              lower_age <- round(mean_age - 2 * sd_age, 1)
-              upper_age <- round(mean_age + 2 * sd_age, 1)
-              cat(paste0("  Estimated Age Range (Mean +/- 2SD): [", max(0, lower_age), " to ", upper_age, "] years\n"))
-            } else {
-              cat("  Estimated Age Range: N/A (Std Dev Age problematic)\n")
-            }
-            cat("\n")
-        }
-    } else {
-        cat("No male subpopulations detected.\n")
-    }
-    
-    if (!is.null(models$female) && !inherits(models$female, "try-error")) {
-        cat("\n--- Female Subpopulations ---\n")
-        
-        print(summary(models$female))
-
-        num_clusters <- models$female$G
-        for (i in 1:num_clusters) {
-            cat(paste0("Cluster ", i, ":\n"))
-            cat(paste0("  Proportion: ", round(models$female$parameters$pro[i], 3), "\n"))
-            
-            female_cluster_data <- plot_data %>% filter(Gender == "Female", cluster == i)
-            mean_hgb <- mean(female_cluster_data$HGB, na.rm = TRUE)
-            mean_age <- mean(female_cluster_data$Age, na.rm = TRUE)
-            sd_hgb <- sd(female_cluster_data$HGB, na.rm = TRUE)
-            sd_age <- sd(female_cluster_data$Age, na.rm = TRUE)
-            
-            cat(paste0("  Mean HGB: ", round(mean_hgb, 3), "\n"))
-            cat(paste0("  Mean Age: ", round(mean_age, 3), "\n"))
-            cat(paste0("  Std Dev HGB: ", round(sd_hgb, 3), "\n"))
-            cat(paste0("  Std Dev Age: ", round(sd_age, 3), "\n"))
-            
-            if (!is.na(sd_age)) {
-              lower_age <- round(mean_age - 2 * sd_age, 1)
-              upper_age <- round(mean_age + 2 * sd_age, 1)
-              cat(paste0("  Estimated Age Range (Mean +/- 2SD): [", max(0, lower_age), " to ", upper_age, "] years\n"))
-            } else {
-              cat("  Estimated Age Range: N/A (Std Dev Age problematic)\n")
-            }
-            cat("\n")
-        }
-    } else {
-        cat("No female subpopulations detected.\n")
-    }
-
-    if (gmm_transformation_details_rv()$male_hgb_transformed || gmm_transformation_details_rv()$female_hgb_transformed) {
-      cat("\nNote: HGB values were transformed (Yeo-Johnson) for GMM input due to skewness. Reported HGB values are original.\n")
-    }
-  })
-
-  output$gmm_summary_output_icl <- renderPrint({
-    plot_data <- gmm_processed_data_rv()$icl
-    models <- gmm_models_icl_rv()
-    
-    if (is.null(plot_data) || nrow(plot_data) == 0) {
-      return("No GMM analysis results to display.")
-    }
-
-    cat("--- GMM Analysis Summary (ICL Criterion) ---\n")
     
     if (!is.null(models$male) && !inherits(models$male, "try-error")) {
         cat("\n--- Male Subpopulations ---\n")
