@@ -68,7 +68,6 @@ ui <- navbarPage(
         textInput(inputId = "unit_input", label = "Unit of Measurement", value = "mmol/L", placeholder = "ex. g/L")
       ),
       mainPanel(
-        style = "padding-left: 15px;",
         # Outputs for the main analysis results
         plotOutput("result_plot"),
         verbatimTextOutput("result_text")
