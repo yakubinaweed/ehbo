@@ -79,22 +79,23 @@ ui <- navbarPage(
   tabPanel(
     title = "Subpopulation Detection (GMM)",
     useShinyjs(),
-    h4("Detect Subpopulations using HGB and Age"),
-    p("Gaussian Mixture Models aim to detect hidden subpopulations within your data based on HGB and Age. The system will automatically select the best model and number of components based on the BIC criterion. For each detected subpopulation, estimated age ranges will be provided directly from the model's characteristics, avoiding predefined bins. While increasing the number of components can improve model fit, it also increases the risk of overfitting, where the model learns noise rather than true underlying patterns."),
+    p("Gaussian Mixture Models aim to detect hidden subpopulations within your data based on a selected value and age. This tool employs the mclust package, which automatically selects the best model and number of components based on the Bayesian Information Criterion (BIC). For each detected subpopulation, estimated age ranges are provided directly from the model's characteristics, avoiding predefined bins.
+
+Before running the GMM, the data is preprocessed: the selected value's column is conditionally transformed using the Yeo-Johnson method if it shows significant skewness, and both the value and age columns are standardized (z-transformed)."),
     sidebarLayout(
       sidebarPanel(
         fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         hr(),
-        # New radio buttons for gender selection
-        radioButtons(inputId = "gmm_gender_choice", label = "Select Gender:", choices = c("Male" = "Male", "Female" = "Female", "Both" = "Both"), selected = "Both", inline = TRUE),
         # Dynamic inputs for selecting HGB, Age, and Gender columns for GMM
-        selectInput(inputId = "gmm_hgb_col", label = "Select HGB Column:", choices = c("None" = ""), selected = ""),
-        selectInput(inputId = "gmm_age_col", label = "Select Age Column:", choices = c("None" = ""), selected = ""),
-        selectInput(inputId = "gmm_gender_col", label = "Select Gender Column:", choices = c("None" = ""), selected = ""),
+        selectInput(inputId = "gmm_hgb_col", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
+        selectInput(inputId = "gmm_age_col", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
+        selectInput(inputId = "gmm_gender_col", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         hr(),
         # Action buttons for the GMM analysis
-        actionButton("run_gmm_analysis_btn", "Run Subpopulation Detection", class = "btn-primary"),
-        actionButton("reset_gmm_analysis_btn", "Reset GMM Data", class = "btn-secondary")
+        # New radio buttons for gender selection
+        radioButtons(inputId = "gmm_gender_choice", label = "Select Gender Analysis:", choices = c("Male" = "Male", "Female" = "Female", "Both" = "Both"), selected = "Both", inline = TRUE),
+        actionButton("run_gmm_analysis_btn", "Analyze", class = "btn-primary"),
+        actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary")
       ),
       mainPanel(
         # Renders the UI for GMM results dynamically
